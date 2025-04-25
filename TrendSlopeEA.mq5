@@ -9,24 +9,35 @@
 
 #define M_PI 3.14159265358979323846
 
-#include <Trade\Trade.mqh>
+// Include necessary modules
+#include "Include/Indicators/EMAIndicator.mqh"
+#include "Include/Indicators/ATRIndicator.mqh"
+#include "Include/Analysis/TrendAnalyzer.mqh"
+#include "Include/Trading/TradeManager.mqh"
+#include "Include/Utils/SignalValidator.mqh"
 
-// Input parameters
+// Input parameters for EMA
 input int    InpEmaPeriod = 20;        // EMA Period
 input int    InpLookback = 50;         // Number of bars to analyze
-input color  InpLineColor = clrBlue;   // Line color
-input int    InpLineWidth = 1;         // Line width
-input color  InpSignalColor = clrYellow;   // Signal arrow color
-input int    InpArrowSize = 3;         // Arrow size
-input int    InpArrowDistance = 5;     // Arrow distance from candle (in points)
-input double InpMinSlopeAngle = 30.0;     // Minimum Slope Angle (degrees)
-input double InpMaxStopLossATR = 2.0;     // Maximum Stop Loss (ATR multiplier)
-input double InpLotSize = 0.01;        // Lot Size
-input double InpRiskRewardRatio = 1.0;    // Risk to Reward ratio (1.0 = 1:1, 2.0 = 1:2)
-input double InpMinVectorLength = 3.0;    // Minimum Vector Length for Trend Confirmation (3-10)
-input double InpMaxVectorLength = 10.0;   // Maximum Vector Length for Trend Confirmation (3-10)
-input bool   InpAllowTrading = true;   // Allow Trading
-input double InpMaxStopLoss = 2.0;       // Maximum Stop Loss in points
+
+// Input parameters for trend visualization
+input color  InpLineColor = clrBlue;    // Line color
+input int    InpLineWidth = 1;          // Line width
+input color  InpSignalColor = clrYellow;// Signal arrow color
+input int    InpArrowSize = 3;          // Arrow size
+input int    InpArrowDistance = 5;      // Arrow distance from candle
+
+// Input parameters for trend analysis
+input double InpMinSlopeAngle = 30.0;   // Minimum Slope Angle (degrees)
+input double InpMinVectorLength = 3.0;   // Minimum Vector Length
+input double InpMaxVectorLength = 10.0;  // Maximum Vector Length
+
+// Input parameters for trade management
+input double InpMaxStopLossATR = 2.0;   // Maximum Stop Loss (ATR multiplier)
+input double InpLotSize = 0.01;         // Lot Size
+input double InpRiskRewardRatio = 1.0;  // Risk to Reward ratio
+input bool   InpAllowTrading = true;    // Allow Trading
+input double InpMaxStopLoss = 2.0;      // Maximum Stop Loss in points
 
 // Global variables
 int g_ema_handle;
@@ -51,64 +62,36 @@ struct TrendLineInfo
 TrendLineInfo trend_lines[];  // Array to store all trend line information
 int trend_count = 0;          // Counter for trend lines
 
+// Class instances
+CEMAIndicator* emaIndicator;
+CATRIndicator* atrIndicator;
+CTrendAnalyzer* trendAnalyzer;
+CTradeManager* tradeManager;
+CSignalValidator* signalValidator;
+
 //+------------------------------------------------------------------+
 //| Expert initialization function                                     |
 //+------------------------------------------------------------------+
 int OnInit()
 {
-    // Reset position flags on initialization
-    g_initialized = false;
+    // Initialize all components
+    emaIndicator = new CEMAIndicator(InpEmaPeriod);
+    atrIndicator = new CATRIndicator(14);
+    trendAnalyzer = new CTrendAnalyzer(InpMinSlopeAngle, InpMinVectorLength, InpMaxVectorLength);
+    tradeManager = new CTradeManager(InpLotSize, InpMaxStopLoss, InpRiskRewardRatio, InpAllowTrading);
+    signalValidator = new CSignalValidator();
     
-    // Initialize trade object
-    trade.SetExpertMagicNumber(123456);
-    trade.SetMarginMode();
-    trade.SetTypeFillingBySymbol(_Symbol);
-    trade.SetDeviationInPoints(10);
-    
-    // Clear all objects first
-    ObjectsDeleteAll(0, "TrendInfo_");
-    ObjectsDeleteAll(0, "TrendArrow_");
-    last_highlighted = "";  // Reset last highlighted line
-    
-    // Make sure chart shows candles
-    ChartSetInteger(0, CHART_MODE, CHART_CANDLES);
-    ChartSetInteger(0, CHART_SHOW_GRID, false);
-    ChartSetInteger(0, CHART_SHOW_VOLUMES, false);
-    ChartSetInteger(0, CHART_SHOW_ASK_LINE, true);
-    ChartSetInteger(0, CHART_SHOW_BID_LINE, true);
-    
-    g_ema_handle = iMA(_Symbol, PERIOD_CURRENT, InpEmaPeriod, 0, MODE_EMA, PRICE_CLOSE);
-    if(g_ema_handle == INVALID_HANDLE)
+    // Initialize indicators
+    if(!emaIndicator.Initialize() || !atrIndicator.Initialize())
     {
-        Print("Error creating EMA indicator");
+        Print("Failed to initialize indicators");
         return INIT_FAILED;
     }
     
-    g_atr_handle = iATR(_Symbol, PERIOD_CURRENT, 14);
-    if(g_atr_handle == INVALID_HANDLE)
-    {
-        Print("Error creating ATR indicator");
-        return INIT_FAILED;
-    }
+    // Setup chart properties
+    ChartSetup();
     
-    // Wait for data to be ready
-    int waited = 0;
-    while(BarsCalculated(g_ema_handle) < 100 && waited < 50)
-    {
-        Sleep(100);
-        waited++;
-    }
-    
-    if(BarsCalculated(g_ema_handle) < 100)
-    {
-        Print("Failed to get enough data for EMA calculation");
-        return INIT_FAILED;
-    }
-    
-    // Force chart refresh
-    ChartRedraw();
-    g_initialized = true;
-    return(INIT_SUCCEEDED);
+    return INIT_SUCCEEDED;
 }
 
 //+------------------------------------------------------------------+
@@ -116,13 +99,15 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
-    ObjectsDeleteAll(0, g_line_name);
-    ObjectsDeleteAll(0, "Signal_");
-    ObjectsDeleteAll(0, "Slope_");
-    ObjectsDeleteAll(0, "EMA_");
-    ObjectsDeleteAll(0, "Angle_");
-    if(g_ema_handle != INVALID_HANDLE) IndicatorRelease(g_ema_handle);
-    if(g_atr_handle != INVALID_HANDLE) IndicatorRelease(g_atr_handle);
+    // Clean up objects
+    delete emaIndicator;
+    delete atrIndicator;
+    delete trendAnalyzer;
+    delete tradeManager;
+    delete signalValidator;
+    
+    // Clear chart objects
+    ObjectsDeleteAll(0);
 }
 
 //+------------------------------------------------------------------+
@@ -624,191 +609,45 @@ bool OpenPosition(bool is_buy)
 //+------------------------------------------------------------------+
 void OnTick()
 {
-    if(!g_initialized) return;
-    
-    static datetime last_candle_time = 0;
-    datetime current_candle_time = iTime(_Symbol, PERIOD_M5, 0);
-    
-    // Only process when a new candle forms
-    if(current_candle_time == last_candle_time) 
-    {
-        return;  // Skip if not a new candle
-    }
-    
-    Print("=== New Candle Detected ===");
-    Print("Current candle time: ", TimeToString(current_candle_time));
-    Print("Last candle time: ", TimeToString(last_candle_time));
-    
-    last_candle_time = current_candle_time;
-    
-    // Counter for signals
-    static int single_bullish = 0;
-    static int single_bearish = 0;
-    static int consecutive_bullish = 0;
-    static int consecutive_bearish = 0;
-    static int touch_bullish = 0;
-    static int touch_bearish = 0;
-    
-    // Check if we have enough data
-    if(Bars(_Symbol, PERIOD_CURRENT) < 100)
-    {
-        Print("Not enough bars in the chart");
+    if(!emaIndicator.Update() || !atrIndicator.Update())
         return;
-    }
-    
-    double ema_values[];
-    ArraySetAsSeries(ema_values, true);
-    
-    // Make sure we get valid data
-    if(CopyBuffer(g_ema_handle, 0, 0, 100, ema_values) != 100)
-    {
-        Print("Error copying EMA values");
-        return;
-    }
-    
-    // Calculate ATR using iATR indicator
-    double atr_buffer[];
-    ArraySetAsSeries(atr_buffer, true);
-    if(CopyBuffer(g_atr_handle, 0, 0, 1, atr_buffer) != 1)
-    {
-        Print("Error copying ATR values");
-        return;
-    }
-    g_atr = atr_buffer[0];
-    
-    // Delete old objects
-    ObjectsDeleteAll(0, g_line_name);
-    ObjectsDeleteAll(0, "Signal_");
-    ObjectsDeleteAll(0, "Slope_");
-    ObjectsDeleteAll(0, "EMA_");
-    ObjectsDeleteAll(0, "Angle_");
-    
-    // Reset trend line array
-    ArrayFree(trend_lines);
-    trend_count = 0;
-    
-    // Draw colored EMA line segments (historical)
-    for(int i = 1; i < 99; i++)
-    {
-        double current_slope = CalculateEMASlope(ema_values, i);
-        datetime time1 = iTime(_Symbol, PERIOD_M5, i);
-        datetime time2 = iTime(_Symbol, PERIOD_M5, i+1);
-        double price1 = ema_values[i];
-        double price2 = ema_values[i+1];
         
-        string ema_name = "EMA_" + IntegerToString(i);
-        color ema_color = current_slope > 0 ? clrLime : clrRed;
-        
-        DrawTrendLine(ema_name, time1, price1, time2, price2, ema_color);
-    }
+    // Analyze current market conditions
+    STrendInfo trendInfo = trendAnalyzer.AnalyzeTrend(emaIndicator.GetValues());
     
-    // Draw slope change lines and calculate angles
-    double prev_slope = 0;
-    datetime prev_time = 0;
-    double prev_price = 0;
-    bool first_point = true;
-    
-    for(int i = 1; i < 100; i++)
+    // Validate signals
+    if(signalValidator.IsValidSignal(emaIndicator.GetValues(), atrIndicator.GetATR()))
     {
-        double current_slope = CalculateEMASlope(ema_values, i);
-        
-        if(!first_point && IsSlopeDirectionChanged(current_slope, prev_slope))
+        // Check trade conditions and open positions if appropriate
+        if(trendInfo.isBuySignal)
         {
-            datetime current_time = iTime(_Symbol, PERIOD_M5, i);
-            double current_price = ema_values[i];
-            
-            string line_name = "Slope_" + IntegerToString(i);
-            color line_color = current_slope > 0 ? clrLime : clrRed;
-            
-            DrawTrendLine(line_name, prev_time, prev_price, current_time, current_price, line_color);
-            DisplayAngle(line_name, prev_time, prev_price, current_time, current_price);
-            
-            prev_time = current_time;
-            prev_price = current_price;
-        }
-        else if(first_point)
-        {
-            prev_time = iTime(_Symbol, PERIOD_M5, i);
-            prev_price = ema_values[i];
-            first_point = false;
-        }
-        
-        prev_slope = current_slope;
-    }
-    
-    // Check for signal candles in history
-    for(int i = 1; i < 100; i++)
-    {
-        if(IsValidSignal(ema_values, i))
-        {
-            bool is_up = iClose(_Symbol, PERIOD_M5, i) > iOpen(_Symbol, PERIOD_M5, i);
-            datetime signal_time = iTime(_Symbol, PERIOD_M5, i);
-            double signal_price = is_up ? iLow(_Symbol, PERIOD_M5, i) - (InpArrowDistance * _Point) 
-                                      : iHigh(_Symbol, PERIOD_M5, i) + (InpArrowDistance * _Point);
-            
-            // Create arrow for signal
-            string signal_name = "Signal_" + IntegerToString(i);
-            if(ObjectCreate(0, signal_name, OBJ_ARROW, 0, signal_time, signal_price))
+            if(tradeManager.CheckTradeConditions(true, trendInfo.name, 
+               trendInfo.length, trendInfo.angle))
             {
-                ObjectSetInteger(0, signal_name, OBJPROP_ARROWCODE, is_up ? 225 : 226);
-                ObjectSetInteger(0, signal_name, OBJPROP_COLOR, InpSignalColor);
-                ObjectSetInteger(0, signal_name, OBJPROP_WIDTH, InpArrowSize);
-                
-                // Count signals
-                if(is_up) single_bullish++;
-                else single_bearish++;
-                
-                // Only consider trading on the most recent closed candle
-                if(i == 1)
-                {
-                    Print("=== Signal Found on Last Closed Candle ===");
-                    Print("Signal type: ", (is_up ? "BULLISH" : "BEARISH"));
-                    Print("Signal time: ", TimeToString(signal_time));
-                    Print("Signal price: ", DoubleToString(signal_price, _Digits));
-                    
-                    // Check if we can open a trade
-                    if(CheckTradeConditions(is_up))
-                    {
-                        if(is_up)
-                        {
-                            Print("Attempting to open BUY position...");
-                            OpenPosition(true);
-                        }
-                        else
-                        {
-                            Print("Attempting to open SELL position...");
-                            OpenPosition(false);
-                        }
-                    }
-                }
+                tradeManager.OpenPosition(true);
+            }
+        }
+        else if(trendInfo.isSellSignal)
+        {
+            if(tradeManager.CheckTradeConditions(false, trendInfo.name, 
+               trendInfo.length, trendInfo.angle))
+            {
+                tradeManager.OpenPosition(false);
             }
         }
     }
-    
-    // Get last valid trend line
-    GetLastValidTrendLine();
-    
-    // Show signal counts and trading status
-    string trading_status = "\nTrading: " + (InpAllowTrading ? "Enabled" : "Disabled");
-    trading_status += "\nOpen Positions: " + (HasOpenPositions() ? "Yes" : "No");
-    
-    Comment("Signal Analysis:\n",
-            "Single Candle Signals:\n",
-            "  Bullish: ", single_bullish, "\n",
-            "  Bearish: ", single_bearish, "\n",
-            "Consecutive Candle Signals:\n",
-            "  Bullish: ", consecutive_bullish, "\n",
-            "  Bearish: ", consecutive_bearish, "\n",
-            "Touch Signals:\n",
-            "  Bullish: ", touch_bullish, "\n",
-            "  Bearish: ", touch_bearish, "\n",
-            "Total Signals: ", (single_bullish + single_bearish + 
-                              consecutive_bullish + consecutive_bearish +
-                              touch_bullish + touch_bearish), "\n",
-            "ATR Value: ", DoubleToString(g_atr/_Point, 1), " points",
-            trading_status);
-    
-    ChartRedraw();
+}
+
+//+------------------------------------------------------------------+
+//| Setup chart properties                                            |
+//+------------------------------------------------------------------+
+void ChartSetup()
+{
+    ChartSetInteger(0, CHART_MODE, CHART_CANDLES);
+    ChartSetInteger(0, CHART_SHOW_GRID, false);
+    ChartSetInteger(0, CHART_SHOW_VOLUMES, false);
+    ChartSetInteger(0, CHART_SHOW_ASK_LINE, true);
+    ChartSetInteger(0, CHART_SHOW_BID_LINE, true);
 }
 
 //+------------------------------------------------------------------+
