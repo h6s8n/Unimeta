@@ -1,12 +1,8 @@
 //+------------------------------------------------------------------+
-//|                                                TradeManager.mqh |
-//|                                  Copyright 2024                    |
-//|                                                                   |
+//|                                                TradeManager.mqh  |
+//| مدیریت معاملات و کنترل ریسک                                      |
 //+------------------------------------------------------------------+
-#property copyright "Copyright 2024"
-#property link      ""
-#property version   "1.00"
-
+#pragma once
 #include <Trade\Trade.mqh>
 #include "../Settings/Config.mqh"
 
@@ -17,7 +13,7 @@ class CTradeManager
 {
 private:
     CTrade m_trade;           // شیء معاملاتی
-    SSettings* m_settings;     // اشاره‌گر به تنظیمات
+    SSettings m_settings;     // تنظیمات
     
     //--- محاسبه حجم معامله
     double CalculateLotSize(double stopLoss)
@@ -37,7 +33,7 @@ private:
     
 public:
     //--- Constructor
-    CTradeManager(SSettings* settings)
+    CTradeManager(const SSettings &settings)
     {
         m_settings = settings;
         Initialize();

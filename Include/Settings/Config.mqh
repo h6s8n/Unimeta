@@ -1,11 +1,8 @@
 //+------------------------------------------------------------------+
-//|                                                       Config.mqh |
-//|                                  Copyright 2024                    |
-//|                                                                   |
+//|                                                      Config.mqh  |
+//| تنظیمات کلی اکسپرت                                                |
 //+------------------------------------------------------------------+
-#property copyright "Copyright 2024"
-#property link      ""
-#property version   "1.00"
+#pragma once
 
 // تعریف ثابت‌های مورد نیاز
 #define M_PI 3.14159265358979323846
@@ -13,24 +10,22 @@
 // ساختار اصلی تنظیمات
 struct SSettings
 {
-    // --- پارامترهای ورودی ---
-    int EmaPeriod;           // دوره EMA
-    int Lookback;            // تعداد کندل‌های مورد بررسی
-    double MinSlopeAngle;    // حداقل زاویه شیب
-    double MaxStopLossATR;   // حداکثر حد ضرر بر اساس ATR
-    double LotSize;          // حجم معامله
-    double RiskRewardRatio;  // نسبت ریسک به ریوارد
-    double MinVectorLength;  // حداقل طول بردار برای تایید روند
-    double MaxVectorLength;  // حداکثر طول بردار برای تایید روند
-    bool AllowTrading;       // اجازه معامله
-    double MaxStopLoss;      // حداکثر حد ضرر
-
-    // --- تنظیمات ظاهری ---
-    color LineColor;         // رنگ خط
-    int LineWidth;          // ضخامت خط
-    color SignalColor;      // رنگ سیگنال
-    int ArrowSize;         // اندازه فلش
-    int ArrowDistance;     // فاصله فلش از کندل
+    // پارامترهای ورودی
+    int    EmaPeriod;         // دوره EMA
+    int    Lookback;          // تعداد کندل برای تحلیل
+    color  LineColor;         // رنگ خط روند
+    int    LineWidth;         // ضخامت خط روند
+    color  SignalColor;       // رنگ فلش سیگنال
+    int    ArrowSize;         // اندازه فلش
+    int    ArrowDistance;     // فاصله فلش از کندل
+    double MinSlopeAngle;     // حداقل زاویه شیب
+    double MinVectorLength;   // حداقل طول بردار
+    double MaxVectorLength;   // حداکثر طول بردار
+    double MaxStopLossATR;    // حداکثر استاپ‌لاس بر اساس ATR
+    double LotSize;           // حجم معامله
+    double RiskRewardRatio;   // نسبت ریسک به ریوارد
+    bool   AllowTrading;      // اجازه معامله
+    double MaxStopLoss;       // حداکثر استاپ‌لاس (بر حسب پوینت)
 
     // تنظیم مقادیر پیش‌فرض
     void SetDefaults()

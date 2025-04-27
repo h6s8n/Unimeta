@@ -1,12 +1,8 @@
 //+------------------------------------------------------------------+
-//|                                               SignalManager.mqh |
-//|                                  Copyright 2024                    |
-//|                                                                   |
+//|                                               SignalManager.mqh  |
+//| مدیریت سیگنال‌ها و اندیکاتورهای EMA و ATR                        |
 //+------------------------------------------------------------------+
-#property copyright "Copyright 2024"
-#property link      ""
-#property version   "1.00"
-
+#pragma once
 #include "../Settings/Config.mqh"
 
 //+------------------------------------------------------------------+
@@ -18,7 +14,7 @@ private:
     int m_ema_handle;         // هندل اندیکاتور EMA
     int m_atr_handle;         // هندل اندیکاتور ATR
     double m_atr;             // مقدار ATR فعلی
-    SSettings* m_settings;     // اشاره‌گر به تنظیمات
+    SSettings m_settings;     // تنظیمات
     
     //--- بررسی معتبر بودن سایز کندل
     bool IsValidSize(double total_size, double body_size)
@@ -34,7 +30,7 @@ private:
     
 public:
     //--- Constructor
-    CSignalManager(SSettings* settings)
+    CSignalManager(const SSettings &settings)
     {
         m_settings = settings;
         m_ema_handle = INVALID_HANDLE;

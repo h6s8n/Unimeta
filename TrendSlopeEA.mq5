@@ -10,11 +10,11 @@
 #define M_PI 3.14159265358979323846
 
 // Include necessary modules
-#include "Include/Indicators/EMAIndicator.mqh"
-#include "Include/Indicators/ATRIndicator.mqh"
 #include "Include/Analysis/TrendAnalyzer.mqh"
 #include "Include/Trading/TradeManager.mqh"
-#include "Include/Utils/SignalValidator.mqh"
+#include "Include/Signals/SignalManager.mqh"
+#include "Include/Settings/Config.mqh"
+#include "Include/Drawing/DrawManager.mqh"
 
 // Input parameters for EMA
 input int    InpEmaPeriod = 20;        // EMA Period
@@ -65,32 +65,74 @@ int trend_count = 0;          // Counter for trend lines
 // Class instances
 CEMAIndicator* emaIndicator;
 CATRIndicator* atrIndicator;
-CTrendAnalyzer* trendAnalyzer;
-CTradeManager* tradeManager;
+CTrendAnalyzer trendAnalyzer;
+CTradeManager tradeManager;
 CSignalValidator* signalValidator;
+CSignalManager signalManager;
+CConfig config;
+CDrawManager drawManager;
+
+// پارامترهای ورودی
+input int    InpEmaPeriod        = 20;
+input int    InpLookback         = 50;
+input color  InpLineColor        = clrBlue;
+input int    InpLineWidth        = 1;
+input color  InpSignalColor      = clrYellow;
+input int    InpArrowSize        = 3;
+input int    InpArrowDistance    = 5;
+input double InpMinSlopeAngle    = 30.0;
+input double InpMinVectorLength  = 3.0;
+input double InpMaxVectorLength  = 10.0;
+input double InpMaxStopLossATR   = 2.0;
+input double InpLotSize          = 0.01;
+input double InpRiskRewardRatio  = 1.0;
+input bool   InpAllowTrading     = true;
+input double InpMaxStopLoss      = 2.0;
+
+// مقداردهی struct تنظیمات
+SSettings settings;
+
+// تعریف اشیاء ماژولار (در سطح global)
+CTrendAnalyzer*   trendAnalyzer;
+CTradeManager*    tradeManager;
+CSignalManager*   signalManager;
+CDrawManager*     drawManager;
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                     |
 //+------------------------------------------------------------------+
 int OnInit()
 {
-    // Initialize all components
-    emaIndicator = new CEMAIndicator(InpEmaPeriod);
-    atrIndicator = new CATRIndicator(14);
-    trendAnalyzer = new CTrendAnalyzer(InpMinSlopeAngle, InpMinVectorLength, InpMaxVectorLength);
-    tradeManager = new CTradeManager(InpLotSize, InpMaxStopLoss, InpRiskRewardRatio, InpAllowTrading);
-    signalValidator = new CSignalValidator();
-    
-    // Initialize indicators
-    if(!emaIndicator.Initialize() || !atrIndicator.Initialize())
+    // مقداردهی struct تنظیمات از ورودی‌ها
+    settings.EmaPeriod        = InpEmaPeriod;
+    settings.Lookback         = InpLookback;
+    settings.LineColor        = InpLineColor;
+    settings.LineWidth        = InpLineWidth;
+    settings.SignalColor      = InpSignalColor;
+    settings.ArrowSize        = InpArrowSize;
+    settings.ArrowDistance    = InpArrowDistance;
+    settings.MinSlopeAngle    = InpMinSlopeAngle;
+    settings.MinVectorLength  = InpMinVectorLength;
+    settings.MaxVectorLength  = InpMaxVectorLength;
+    settings.MaxStopLossATR   = InpMaxStopLossATR;
+    settings.LotSize          = InpLotSize;
+    settings.RiskRewardRatio  = InpRiskRewardRatio;
+    settings.AllowTrading     = InpAllowTrading;
+    settings.MaxStopLoss      = InpMaxStopLoss;
+
+    // ساخت اشیاء ماژولار
+    trendAnalyzer = new CTrendAnalyzer(settings);
+    tradeManager  = new CTradeManager(settings);
+    signalManager = new CSignalManager(settings);
+    drawManager   = new CDrawManager(settings, trendAnalyzer);
+
+    // مقداردهی اولیه اندیکاتورها
+    if(!signalManager.Initialize())
     {
         Print("Failed to initialize indicators");
         return INIT_FAILED;
     }
-    
-    // Setup chart properties
-    ChartSetup();
-    
+
     return INIT_SUCCEEDED;
 }
 
@@ -99,15 +141,10 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
-    // Clean up objects
-    delete emaIndicator;
-    delete atrIndicator;
-    delete trendAnalyzer;
-    delete tradeManager;
-    delete signalValidator;
-    
-    // Clear chart objects
-    ObjectsDeleteAll(0);
+    if(signalManager) delete signalManager;
+    if(tradeManager)  delete tradeManager;
+    if(trendAnalyzer) delete trendAnalyzer;
+    if(drawManager)   delete drawManager;
 }
 
 //+------------------------------------------------------------------+
@@ -396,8 +433,8 @@ bool HasOpenPositions()
 double CalculateCurrentAngle()
 {
     double ema_values[];
-    ArraySetAsSeries(ema_values, true);
-    CopyBuffer(g_ema_handle, 0, 0, 3, ema_values);
+    signalManager.GetEMAValues(ema_values, settings.Lookback);
+    double atr = signalManager.GetATR();
     
     double dx = 2.0;  // Two bars time difference
     double dy = ema_values[0] - ema_values[2];
