@@ -2,7 +2,7 @@
 //|                                                TradeManager.mqh  |
 //| مدیریت معاملات و کنترل ریسک                                      |
 //+------------------------------------------------------------------+
-#pragma once
+
 #include <Trade\Trade.mqh>
 #include "../Settings/Config.mqh"
 

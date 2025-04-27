@@ -10,34 +10,35 @@
 #define M_PI 3.14159265358979323846
 
 // Include necessary modules
+#include "Include/Settings/Config.mqh"
 #include "Include/Analysis/TrendAnalyzer.mqh"
 #include "Include/Trading/TradeManager.mqh"
 #include "Include/Signals/SignalManager.mqh"
-#include "Include/Settings/Config.mqh"
 #include "Include/Drawing/DrawManager.mqh"
 
-// Input parameters for EMA
-input int    InpEmaPeriod = 20;        // EMA Period
-input int    InpLookback = 50;         // Number of bars to analyze
+// Input parameters (فقط یک بار تعریف شود)
+input int    InpEmaPeriod        = 20;
+input int    InpLookback         = 50;
+input color  InpLineColor        = clrBlue;
+input int    InpLineWidth        = 1;
+input color  InpSignalColor      = clrYellow;
+input int    InpArrowSize        = 3;
+input int    InpArrowDistance    = 5;
+input double InpMinSlopeAngle    = 30.0;
+input double InpMinVectorLength  = 3.0;
+input double InpMaxVectorLength  = 10.0;
+input double InpMaxStopLossATR   = 2.0;
+input double InpLotSize          = 0.01;
+input double InpRiskRewardRatio  = 1.0;
+input bool   InpAllowTrading     = true;
+input double InpMaxStopLoss      = 2.0;
 
-// Input parameters for trend visualization
-input color  InpLineColor = clrBlue;    // Line color
-input int    InpLineWidth = 1;          // Line width
-input color  InpSignalColor = clrYellow;// Signal arrow color
-input int    InpArrowSize = 3;          // Arrow size
-input int    InpArrowDistance = 5;      // Arrow distance from candle
-
-// Input parameters for trend analysis
-input double InpMinSlopeAngle = 30.0;   // Minimum Slope Angle (degrees)
-input double InpMinVectorLength = 3.0;   // Minimum Vector Length
-input double InpMaxVectorLength = 10.0;  // Maximum Vector Length
-
-// Input parameters for trade management
-input double InpMaxStopLossATR = 2.0;   // Maximum Stop Loss (ATR multiplier)
-input double InpLotSize = 0.01;         // Lot Size
-input double InpRiskRewardRatio = 1.0;  // Risk to Reward ratio
-input bool   InpAllowTrading = true;    // Allow Trading
-input double InpMaxStopLoss = 2.0;      // Maximum Stop Loss in points
+// تعریف struct تنظیمات و اشیاء ماژولار (فقط یک بار)
+SSettings settings;
+CTrendAnalyzer*   trendAnalyzer;
+CTradeManager*    tradeManager;
+CSignalManager*   signalManager;
+CDrawManager*     drawManager;
 
 // Global variables
 int g_ema_handle;
@@ -62,44 +63,8 @@ struct TrendLineInfo
 TrendLineInfo trend_lines[];  // Array to store all trend line information
 int trend_count = 0;          // Counter for trend lines
 
-// Class instances
-CEMAIndicator* emaIndicator;
-CATRIndicator* atrIndicator;
-CTrendAnalyzer trendAnalyzer;
-CTradeManager tradeManager;
-CSignalValidator* signalValidator;
-CSignalManager signalManager;
-CConfig config;
-CDrawManager drawManager;
-
-// پارامترهای ورودی
-input int    InpEmaPeriod        = 20;
-input int    InpLookback         = 50;
-input color  InpLineColor        = clrBlue;
-input int    InpLineWidth        = 1;
-input color  InpSignalColor      = clrYellow;
-input int    InpArrowSize        = 3;
-input int    InpArrowDistance    = 5;
-input double InpMinSlopeAngle    = 30.0;
-input double InpMinVectorLength  = 3.0;
-input double InpMaxVectorLength  = 10.0;
-input double InpMaxStopLossATR   = 2.0;
-input double InpLotSize          = 0.01;
-input double InpRiskRewardRatio  = 1.0;
-input bool   InpAllowTrading     = true;
-input double InpMaxStopLoss      = 2.0;
-
-// مقداردهی struct تنظیمات
-SSettings settings;
-
-// تعریف اشیاء ماژولار (در سطح global)
-CTrendAnalyzer*   trendAnalyzer;
-CTradeManager*    tradeManager;
-CSignalManager*   signalManager;
-CDrawManager*     drawManager;
-
 //+------------------------------------------------------------------+
-//| Expert initialization function                                     |
+//| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
 {
@@ -137,7 +102,7 @@ int OnInit()
 }
 
 //+------------------------------------------------------------------+
-//| Expert deinitialization function                                   |
+//| Expert deinitialization function                                 |
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
@@ -646,14 +611,14 @@ bool OpenPosition(bool is_buy)
 //+------------------------------------------------------------------+
 void OnTick()
 {
-    if(!emaIndicator.Update() || !atrIndicator.Update())
+    if(!trendAnalyzer.Update())
         return;
         
     // Analyze current market conditions
-    STrendInfo trendInfo = trendAnalyzer.AnalyzeTrend(emaIndicator.GetValues());
+    STrendInfo trendInfo = trendAnalyzer.AnalyzeTrend(trendAnalyzer.GetValues());
     
     // Validate signals
-    if(signalValidator.IsValidSignal(emaIndicator.GetValues(), atrIndicator.GetATR()))
+    if(trendInfo.isBuySignal || trendInfo.isSellSignal)
     {
         // Check trade conditions and open positions if appropriate
         if(trendInfo.isBuySignal)

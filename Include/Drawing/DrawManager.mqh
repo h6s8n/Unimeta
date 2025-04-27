@@ -2,7 +2,7 @@
 //|                                                 DrawManager.mqh  |
 //| مدیریت ترسیم خطوط و اشیاء گرافیکی روی چارت                        |
 //+------------------------------------------------------------------+
-#pragma once
+
 #include "../Settings/Config.mqh"
 #include "../Analysis/TrendAnalyzer.mqh"
 
