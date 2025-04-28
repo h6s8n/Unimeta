@@ -38,6 +38,10 @@ int g_atr_handle;
 bool g_initialized = false;
 double g_atr = 0;  // Added ATR value
 
+// Trend line tracking
+TrendLineInfo trend_lines[];  // Array to store trend line information
+int trend_count = 0;          // Counter for trend lines
+
 // Drawing objects
 CTrendLineDrawer* trend_drawer = NULL;
 CSmoothLineDrawer* smooth_drawer = NULL;
@@ -298,13 +302,8 @@ bool IsSlopeDirectionChanged(double current_slope, double prev_slope)
 //+------------------------------------------------------------------+
 //| Draw trend line based on slope                                    |
 //+------------------------------------------------------------------+
-void DrawTrendLine(string name, datetime time1, double price1, datetime time2, double price2, color line_color)
-{
-    ObjectCreate(0, name, OBJ_TREND, 0, time1, price1, time2, price2);
-    ObjectSetInteger(0, name, OBJPROP_COLOR, line_color);
-    ObjectSetInteger(0, name, OBJPROP_WIDTH, 2);
-    ObjectSetInteger(0, name, OBJPROP_RAY_RIGHT, false);
-    ObjectSetInteger(0, name, OBJPROP_STYLE, STYLE_SOLID);
+void DrawTrendLine(const string &name, datetime time1, double price1, datetime time2, double price2) {
+    trend_drawer.DrawTrendLine(name, time1, price1, time2, price2);
 }
 
 //+------------------------------------------------------------------+
@@ -434,8 +433,8 @@ bool GetLastValidTrendLine()
     Print("--- Checking for Valid Trend Lines ---");
     
     // Get the latest valid trend line from trend_drawer
-    TrendLineInfo latest_trend;
-    if(trend_drawer.GetLatestValidTrendLine(latest_trend))
+    TrendLineInfo latest_trend = trend_drawer.GetLatestValidTrendLine();
+    if(latest_trend.name != "")
     {
         Print("Found valid trend line: ", latest_trend.name);
         Print("Line length: ", latest_trend.length);
@@ -485,8 +484,8 @@ bool CheckTradeConditions(bool is_bullish_signal)
     }
     
     // Get the latest trend line from trend_drawer
-    TrendLineInfo latest_trend;
-    if(trend_drawer.GetLatestTrendLine(latest_trend))
+    TrendLineInfo latest_trend = trend_drawer.GetLatestTrendLine();
+    if(latest_trend.name != "")
     {
         Print("Latest trend line: ", latest_trend.name);
         Print("Trend line angle: ", latest_trend.angle);
@@ -630,7 +629,7 @@ void OnTick()
         string ema_name = "EMA_" + IntegerToString(i);
         color ema_color = current_slope > 0 ? clrLime : clrRed;
         
-        trend_drawer.DrawTrendLine(ema_name, time1, price1, time2, price2, ema_color);
+        trend_drawer.DrawTrendLine(ema_name, time1, price1, time2, price2);
     }
     
     // Draw slope change lines and calculate angles
@@ -651,7 +650,7 @@ void OnTick()
             string line_name = "Slope_" + IntegerToString(i);
             color line_color = current_slope > 0 ? clrLime : clrRed;
             
-            trend_drawer.DrawTrendLine(line_name, prev_time, prev_price, current_time, current_price, line_color);
+            trend_drawer.DrawTrendLine(line_name, prev_time, prev_price, current_time, current_price);
             trend_drawer.DisplayAngle(line_name, prev_time, prev_price, current_time, current_price);
             
             prev_time = current_time;
@@ -715,8 +714,13 @@ void OnTick()
     // Get last valid trend line
     GetLastValidTrendLine();
     
-    // Draw smooth trend lines
-    smooth_drawer.DrawAllSmoothLines();
+    // رسم خطوط روند
+    TrendLineInfo current_trend_lines[];  // تغییر نام متغیر برای جلوگیری از تداخل
+    ArrayResize(current_trend_lines, trend_count);
+    for(int i = 0; i < trend_count; i++) {
+        current_trend_lines[i] = trend_lines[i];
+    }
+    DrawAllSmoothLines(current_trend_lines);
     
     // Show signal counts and trading status
     string trading_status = "\nTrading: " + (InpAllowTrading ? "Enabled" : "Disabled");
@@ -767,4 +771,28 @@ void OnChartEvent(const int id, const long& lparam, const double& dparam, const 
             trend_drawer.HighlightLine(sparam);
         }
     }
+}
+
+// Function to calculate angle between two points
+double CalculateAngle(double x1, double y1, double x2, double y2) {
+    double dx = x2 - x1;
+    double dy = y2 - y1;
+    return MathArctan(dy/dx) * 180.0 / M_PI;
+}
+
+// Function to display angle on chart
+void DisplayAngle(double angle, datetime time1, double price1, datetime time2, double price2) {
+    string angle_text = "Angle: " + DoubleToString(angle, 1) + "°";
+    string obj_name = "Angle_" + IntegerToString(trend_count);
+    
+    ObjectCreate(0, obj_name, OBJ_TEXT, 0, time1, price1);
+    ObjectSetString(0, obj_name, OBJPROP_TEXT, angle_text);
+    ObjectSetInteger(0, obj_name, OBJPROP_COLOR, clrWhite);
+    ObjectSetInteger(0, obj_name, OBJPROP_FONTSIZE, 10);
+    ObjectSetInteger(0, obj_name, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
+}
+
+// در تابع DrawAllSmoothLines
+void DrawAllSmoothLines(TrendLineInfo &lines[]) {
+    smooth_drawer.DrawAllSmoothLines(lines);
 } 

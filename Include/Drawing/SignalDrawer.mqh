@@ -1,3 +1,5 @@
+#include "DrawingTypes.mqh"
+
 //+------------------------------------------------------------------+
 //| SignalDrawer.mqh                                                 |
 //| کلاس رسم سیگنال‌ها                                               |
@@ -20,11 +22,17 @@ public:
 
     // رسم فلش سیگنال
     void DrawSignal(const SignalInfo &signal) {
-        // پیاده‌سازی رسم سیگنال
+        string arrow_name = "Signal_" + signal.name;
+        ObjectCreate(0, arrow_name, OBJ_ARROW, 0, signal.time, signal.price);
+        ObjectSetInteger(0, arrow_name, OBJPROP_ARROWCODE, signal.is_buy ? 233 : 234);
+        ObjectSetInteger(0, arrow_name, OBJPROP_COLOR, m_signal_color);
+        ObjectSetInteger(0, arrow_name, OBJPROP_WIDTH, m_arrow_size);
     }
 
     // رسم همه سیگنال‌ها
     void DrawAllSignals(const SignalInfo &signals[]) {
-        // پیاده‌سازی رسم همه سیگنال‌ها
+        for(int i = 0; i < ArraySize(signals); i++) {
+            DrawSignal(signals[i]);
+        }
     }
 };
