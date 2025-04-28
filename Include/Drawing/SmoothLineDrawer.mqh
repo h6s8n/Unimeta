@@ -21,9 +21,13 @@ public:
         if(ArraySize(times) < 2 || ArraySize(prices) < 2) return;
         
         for(int i = 0; i < ArraySize(times) - 1; i++) {
-            m_trend_drawer.DrawTrendLine(name + "_" + IntegerToString(i),
-                                       times[i], prices[i],
-                                       times[i+1], prices[i+1]);
+            string line_name = name + "_" + IntegerToString(i);
+            datetime time1 = times[i];
+            double price1 = prices[i];
+            datetime time2 = times[i+1];
+            double price2 = prices[i+1];
+            
+            m_trend_drawer.DrawTrendLine(line_name, time1, price1, time2, price2);
         }
     }
 
