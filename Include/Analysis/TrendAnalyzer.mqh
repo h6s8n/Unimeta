@@ -21,7 +21,16 @@ class CTrendAnalyzer
 {
 private:
     SSettings m_settings;                // تنظیمات
-    STrendInfo m_trend_lines[];          // آرایه خطوط روند
+    struct TrendLineInfo
+    {
+        string name;
+        double length;
+        datetime end_time;
+        double angle;
+        datetime times[];   // آرایه زمان‌ها
+        double prices[];    // آرایه قیمت‌ها
+    };
+    TrendLineInfo trend_lines[];
     int m_trend_count;                   // تعداد خطوط روند
     string m_last_highlighted;           // آخرین خط هایلایت شده
 
@@ -37,7 +46,7 @@ public:
     //--- Reset trend lines
     void Reset()
     {
-        ArrayFree(m_trend_lines);
+        ArrayFree(trend_lines);
         m_trend_count = 0;
     }
 
@@ -66,11 +75,13 @@ public:
     //--- اضافه کردن خط روند جدید
     void AddTrendLine(string name, double length, datetime end_time, double angle)
     {
-        ArrayResize(m_trend_lines, m_trend_count + 1);
-        m_trend_lines[m_trend_count].name = name;
-        m_trend_lines[m_trend_count].length = length;
-        m_trend_lines[m_trend_count].end_time = end_time;
-        m_trend_lines[m_trend_count].angle = angle;
+        TrendLineInfo info;
+        info.name = name;
+        info.length = length;
+        info.end_time = end_time;
+        info.angle = angle;
+        ArrayResize(trend_lines, ArraySize(trend_lines) + 1);
+        trend_lines[ArraySize(trend_lines) - 1] = info;
         m_trend_count++;
     }
 
@@ -114,13 +125,13 @@ public:
         datetime latest_time = 0;
         for(int i = 0; i < m_trend_count; i++)
         {
-            if(m_trend_lines[i].length <= m_settings.MinVectorLength) continue;
-            if(m_trend_lines[i].end_time > latest_time)
+            if(trend_lines[i].length <= m_settings.MinVectorLength) continue;
+            if(trend_lines[i].end_time > latest_time)
             {
-                latest_time = m_trend_lines[i].end_time;
-                latest_name = m_trend_lines[i].name;
-                latest_length = m_trend_lines[i].length;
-                latest_angle = m_trend_lines[i].angle;
+                latest_time = trend_lines[i].end_time;
+                latest_name = trend_lines[i].name;
+                latest_length = trend_lines[i].length;
+                latest_angle = trend_lines[i].angle;
             }
         }
         if(latest_name == "")
@@ -137,4 +148,18 @@ public:
     //--- متدهای دسترسی به آخرین خط هایلایت شده
     string GetLastHighlighted() { return m_last_highlighted; }
     void SetLastHighlighted(string name) { m_last_highlighted = name; }
+
+    int GetTrendLinesCount() { return ArraySize(trend_lines); }
+
+    bool GetTrendLineInfo(int index, string &name, double &length, datetime &end_time, double &angle, datetime &times[], double &prices[])
+    {
+        if(index < 0 || index >= ArraySize(trend_lines)) return false;
+        name = trend_lines[index].name;
+        length = trend_lines[index].length;
+        end_time = trend_lines[index].end_time;
+        angle = trend_lines[index].angle;
+        ArrayCopy(times, trend_lines[index].times);
+        ArrayCopy(prices, trend_lines[index].prices);
+        return true;
+    }
 };
